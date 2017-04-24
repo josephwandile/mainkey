@@ -5,7 +5,7 @@ import os
 import pickle
 import random
 
-FALL, JUMP = 0, 1
+SWING, JUMP = 0, 1
 
 
 class Learner(object):
@@ -15,8 +15,8 @@ class Learner(object):
     TODO Gravity is the value of the second state's velocity entry. Extract into a constant.
     """
 
-    def __init__(self, epsilon=None, import_from=None, export_to=None, exploiting=False):
-        self.last_state  = None
+    def __init__(self, epsilon=None, import_from=None, export_to=None, exploiting=False, epochs=20):
+        self.last_state = None
         self.last_action = None
         self.last_reward = None
 
@@ -28,16 +28,16 @@ class Learner(object):
 
         self.import_from = import_from
         self.export_to = export_to
-        self.dump_interval = 200
-        self.reporting_interval = 5
+        self.epochs = epochs
+        self.epoch = 0
 
         self.q_values = None
         self._init_q_values()
 
-        self.actions = [FALL, JUMP]
+        self.actions = [SWING, JUMP]
 
     def reset(self):
-        self.last_state  = None
+        self.last_state = None
         self.last_action = None
         self.last_reward = None
 
@@ -69,24 +69,52 @@ class Learner(object):
         return random.random() < self._get_epsilon()
 
     def _get_q_value(self, state, action):
-        return self.q_values[str((state, action))]
+        return self.q_values[state, action]
 
     def _set_q_value(self, state, action, q_):
-        self.q_values[str((state, action))] = q_
+        self.q_values[state, action] = q_
 
     def _get_value(self, state):
         return max([self._get_q_value(state, action) for action in self.actions])
 
     def _get_greedy_action(self, state):
-        return FALL if self._get_q_value(state, FALL) >= self._get_q_value(state, JUMP) else JUMP
+        return SWING if self._get_q_value(state, SWING) >= self._get_q_value(state, JUMP) else JUMP
 
     def _get_action(self, state):
         action = random.choice(self.actions) if self._off_policy() else self._get_greedy_action(state)
         return action
 
-    def _extract_state(self, state):
-        # TODO
-        return state
+    def _extract_features(self, state):
+
+        score = state['score']
+        tree_dist = state['tree']['dist']
+        tree_top = state['tree']['top']
+        tree_bot = state['tree']['bot']
+        monkey_vel = state['monkey']['vel']
+        monkey_top = state['monkey']['top']
+        monkey_bot = state['monkey']['bot']
+        tree_mid = (tree_top - tree_bot)
+        monkey_mid = (monkey_top - monkey_bot)
+        monkey_below_down = int(tree_mid < monkey_mid and monkey_vel < 0)
+        monkey_below_up = int(tree_mid < monkey_mid and monkey_vel > 0)
+        monkey_above_down = int(tree_mid > monkey_mid and monkey_vel < 0)
+        monkey_above_up = int(tree_mid > monkey_mid and monkey_vel > 0)
+
+        feature_dict = {
+            'score': score,
+            'tree_dist': tree_dist,
+            'tree_top': tree_top,
+            'tree_bot': tree_bot,
+            'monkey_vel': monkey_vel,
+            'monkey_top': monkey_top,
+            'monkey_bot': monkey_bot,
+            'monkey_below_down': monkey_below_down,
+            'monkey_below_up': monkey_below_up,
+            'monkey_above_down': monkey_above_down,
+            'monkey_above_up': monkey_above_up
+        }
+
+        return frozenset(feature_dict.items())
 
     def _update(self, last_state, last_action, current_state, last_reward):
         q = self._get_q_value(last_state, last_action)
@@ -94,49 +122,44 @@ class Learner(object):
         self._set_q_value(last_state, last_action, q_)
 
     def action_callback(self, state):
-        """
-        Implement this function to learn things and take actions.
-        Return 0 if you don't want to jump and 1 if you do.
-        """
-
-        # You might do some learning here based on the current state and the last state.
-
-        # You'll need to select and action and return it.
-        # Return 0 to swing and 1 to jump.
 
         if state['monkey']['vel'] == 0 and not self.gravity:
             self.gravity = state['monkey']['vel']
 
-        state_representation = self._extract_state(state)
-        self._update(self.last_state, self.last_action, state, self.last_reward)
+        state_representation = self._extract_features(state)
 
-        new_action = self._get_action(state_representation)
-        new_state = state
+        if self.last_state:
+            self._update(self.last_state, self.last_action, state_representation, self.last_reward)
 
-        self.last_action = new_action
-        self.last_state = new_state
+        self.last_action = self._get_action(state_representation)
+        self.last_state = state_representation
+
+        self.epoch += 1
+        if self.epoch == self.epochs:
+            self._dump_q_values()
 
         return self.last_action
 
     def reward_callback(self, reward):
         """
-        This gets called so you can see what reward you get.
-
         Note to self: action_callback is called after reward_callback
+
+        i.e. state, action, reward, next_state is going to be represented in action_callback
+        as last_state, last_action, last_reward, state
         """
         self.last_reward = reward
 
 
-def run_games(learner, hist, iters = 100, t_len = 100):
+def run_games(learner, hist, iters=100, t_len=100):
     """
     Driver function to simulate learning by having the agent play a sequence of games.
 
     """
     for ii in range(iters):
         # Make a new monkey object.
-        swing = SwingyMonkey(sound=False,                  # Don't play sounds.
-                             text="Epoch %d" % (ii),       # Display the epoch on screen.
-                             tick_length = t_len,          # Make game ticks super fast.
+        swing = SwingyMonkey(sound=False,                      # Don't play sounds.
+                             text="Epoch {}".format(ii),       # Display the epoch on screen.
+                             tick_length=t_len,                # Make game ticks super fast.
                              action_callback=learner.action_callback,
                              reward_callback=learner.reward_callback)
 
@@ -153,14 +176,16 @@ def run_games(learner, hist, iters = 100, t_len = 100):
 
 if __name__ == '__main__':
 
-    # Select agent.
-    agent = Learner()
+    epochs = 1
 
-    # Empty list to save history.
+    # Select agent
+    agent = Learner(epochs=epochs, export_to='qs.pkl')
+
+    # Empty list to save history
     hist = []
 
-    # Run games.
-    run_games(agent, hist, 20, 0)
+    # Run games
+    run_games(agent, hist, iters=epochs, t_len=0)
 
-    # Save history.
+    # Save history
     np.save('hist', np.array(hist))
