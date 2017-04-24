@@ -1,3 +1,8 @@
+#
+#                                   IMPORTANT NOTE:
+#  Large parts of this code and structure is based on work Aron and Joe did for their final project in CS 182.
+#  https://github.com/josephwandile/flaippy-bird
+#
 import numpy as np
 from SwingyMonkey import SwingyMonkey
 from collections import defaultdict
