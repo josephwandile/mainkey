@@ -14,18 +14,13 @@ SWING, JUMP = 0, 1
 
 
 class Learner(object):
-    """
-    This agent jumps randomly.
-
-    TODO Gravity is the value of the second state's velocity entry. Extract into a constant.
-    """
 
     def __init__(self, epsilon=None, import_from=None, export_to=None, exploiting=False, epochs=20):
         self.last_state = None
         self.last_action = None
         self.last_reward = None
 
-        self.epsilon = epsilon          # off-policy rate
+        self.epsilon = epsilon          # for epsilon-greedy
         self.alpha = 0.7                # learning rate
         self.gamma = 1.0                # discount
         self.exploiting = exploiting    # set to false is still trying to learn a good policy
@@ -89,7 +84,8 @@ class Learner(object):
         action = random.choice(self.actions) if self._off_policy() else self._get_greedy_action(state)
         return action
 
-    def _extract_features(self, state):
+    @staticmethod
+    def _extract_features(state):
 
         score = state['score']
         tree_dist = state['tree']['dist']
