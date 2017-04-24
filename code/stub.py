@@ -106,18 +106,12 @@ class Learner(object):
         monkey_above_up = int(tree_mid > monkey_mid and monkey_vel > 0)
 
         feature_dict = {
-            # 'score': score,
-            'tree_dist': self._get_bucket(tree_dist, size=40),
-            # 'tree_top': self._get_bucket(tree_top),
-            # 'tree_bot': self._get_bucket(tree_bot),
-            # 'monkey_vel': monkey_vel,
-            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=30),
-            # 'monkey_top': self._get_bucket(monkey_top),
-            # 'monkey_bot': self._get_bucket(monkey_bot),
-            'monkey_below_down': monkey_below_down,
-            # 'monkey_below_up': monkey_below_up,
-            'monkey_above_down': monkey_above_down,
-            # 'monkey_above_up': monkey_above_up
+            'tree_dist': self._get_bucket(tree_dist, size=50) if tree_dist < 100 else self._get_bucket(tree_dist, size=150),
+            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
+            'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
+            'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
+            'close_to_bottom': int(monkey_bot < 100),  # Close to bottom of the screen
+            'close_to_top': int(monkey_top > 300),     # Close to top of screen
         }
 
         return frozenset(feature_dict.items())
@@ -196,4 +190,4 @@ if __name__ == '__main__':
     print("High Score: {}".format(np.max(hist)))
     print("Average Score: {}".format(np.mean(hist)))
     print("Average of last {}: {}".format(20, np.mean(hist[-20:])))
-
+    print("Number of States: {}".format(len(agent.q_values)))
