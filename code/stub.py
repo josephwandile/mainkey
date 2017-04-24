@@ -85,7 +85,10 @@ class Learner(object):
         return action
 
     @staticmethod
-    def _extract_features(state):
+    def _get_bucket(val, size=40):
+        return val - (val % size)
+
+    def _extract_features(self, state):
 
         score = state['score']
         tree_dist = state['tree']['dist']
@@ -94,25 +97,27 @@ class Learner(object):
         monkey_vel = state['monkey']['vel']
         monkey_top = state['monkey']['top']
         monkey_bot = state['monkey']['bot']
-        tree_mid = (tree_top - tree_bot)
-        monkey_mid = (monkey_top - monkey_bot)
+        tree_mid = tree_bot + (tree_top - tree_bot) / 2
+        monkey_mid = monkey_bot + (monkey_top - monkey_bot) / 2
+        monkey_to_tree = monkey_mid - tree_mid
         monkey_below_down = int(tree_mid < monkey_mid and monkey_vel < 0)
         monkey_below_up = int(tree_mid < monkey_mid and monkey_vel > 0)
         monkey_above_down = int(tree_mid > monkey_mid and monkey_vel < 0)
         monkey_above_up = int(tree_mid > monkey_mid and monkey_vel > 0)
 
         feature_dict = {
-            'score': score,
-            'tree_dist': tree_dist,
-            'tree_top': tree_top,
-            'tree_bot': tree_bot,
-            'monkey_vel': monkey_vel,
-            'monkey_top': monkey_top,
-            'monkey_bot': monkey_bot,
+            # 'score': score,
+            'tree_dist': self._get_bucket(tree_dist, size=40),
+            # 'tree_top': self._get_bucket(tree_top),
+            # 'tree_bot': self._get_bucket(tree_bot),
+            # 'monkey_vel': monkey_vel,
+            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=30),
+            # 'monkey_top': self._get_bucket(monkey_top),
+            # 'monkey_bot': self._get_bucket(monkey_bot),
             'monkey_below_down': monkey_below_down,
-            'monkey_below_up': monkey_below_up,
+            # 'monkey_below_up': monkey_below_up,
             'monkey_above_down': monkey_above_down,
-            'monkey_above_up': monkey_above_up
+            # 'monkey_above_up': monkey_above_up
         }
 
         return frozenset(feature_dict.items())
@@ -177,7 +182,7 @@ def run_games(learner, hist, iters=100, t_len=100):
 
 if __name__ == '__main__':
 
-    epochs = 1
+    epochs = 50
 
     # Select agent
     agent = Learner(epochs=epochs, export_to='qs.pkl')
@@ -188,5 +193,7 @@ if __name__ == '__main__':
     # Run games
     run_games(agent, hist, iters=epochs, t_len=0)
 
-    # Save history
-    np.save('hist', np.array(hist))
+    print("High Score: {}".format(np.max(hist)))
+    print("Average Score: {}".format(np.mean(hist)))
+    print("Average of last {}: {}".format(20, np.mean(hist[-20:])))
+
