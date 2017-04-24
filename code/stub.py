@@ -21,8 +21,8 @@ class Learner(object):
         self.last_reward = None
 
         self.epsilon = epsilon          # for epsilon-greedy
-        self.alpha = 0.7                # learning rate
-        self.gamma = 1.0                # discount
+        self.alpha = 0.8                # learning rate
+        self.gamma = 0.7                # discount
         self.exploiting = exploiting    # set to false is still trying to learn a good policy
         self.gravity = None
 
@@ -105,8 +105,14 @@ class Learner(object):
         monkey_above_down = int(tree_mid > monkey_mid and monkey_vel < 0)
         monkey_above_up = int(tree_mid > monkey_mid and monkey_vel > 0)
 
+        vel_indicator = 0
+        if monkey_vel <= -5:
+            vel_indicator = -1
+        elif monkey_vel >= 5:
+            vel_indicator = 1
+
         feature_dict = {
-            'tree_dist': self._get_bucket(tree_dist, size=50) if tree_dist < 100 else self._get_bucket(tree_dist, size=150),
+            'tree_dist': self._get_bucket(tree_dist, size=50),
             'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
             'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
             'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
@@ -176,7 +182,7 @@ def run_games(learner, hist, iters=100, t_len=100):
 
 if __name__ == '__main__':
 
-    epochs = 50
+    epochs = 200
 
     # Select agent
     agent = Learner(epochs=epochs, export_to='qs.pkl')
