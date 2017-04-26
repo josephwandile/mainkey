@@ -167,14 +167,51 @@ class ApproximateLearner(Learner):
 
     def _update(self, last_state, last_action, current_state, last_reward):
         feature_vals = [f for _, f in current_state]
-        for i, weight in enumerate(self.w):
-            self.w[i] = weight + self.alpha * \
+        for i, _ in enumerate(self.w):
+            self.w[i] = self.w[i] + self.alpha * \
                         (last_reward + self.gamma + self._get_value(current_state) - self._get_q_value(last_state, last_action)) * \
                         feature_vals[i]
 
     def _get_q_value(self, state, action):
         feature_vals = [f for _, f in state]
         return np.dot(feature_vals, self.w)
+
+    def _extract_features(self, state):
+
+        tree_dist = state['tree']['dist']
+        tree_top = state['tree']['top']
+        tree_bot = state['tree']['bot']
+        monkey_vel = state['monkey']['vel']
+        monkey_top = state['monkey']['top']
+        monkey_bot = state['monkey']['bot']
+        tree_mid = tree_bot + (tree_top - tree_bot) / 2
+        monkey_mid = monkey_bot + (monkey_top - monkey_bot) / 2
+        monkey_to_tree = monkey_mid - tree_mid
+        monkey_below_down = int(tree_mid < monkey_mid and monkey_vel < 0)
+        monkey_below_up = int(tree_mid < monkey_mid and monkey_vel > 0)
+        monkey_above_down = int(tree_mid > monkey_mid and monkey_vel < 0)
+        monkey_above_up = int(tree_mid > monkey_mid and monkey_vel > 0)
+
+        feature_dict = {
+            'tree_dist': tree_dist,
+            'monkey_to_tree': monkey_to_tree,
+            'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
+            'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
+            'mbu': monkey_below_up,
+            'mau': monkey_above_up,
+            'vel': monkey_vel,
+            'close_to_bottom': int(monkey_bot < 100),  # Close to bottom of the screen
+            'close_to_top': int(monkey_top > 300),     # Close to top of screen
+            'monkey_top': monkey_top,
+            'monkey_bottom': monkey_bot,
+            'gravity': self.gravity,
+            'bias': 1.0,
+        }
+
+        if not self.w:
+            self.w = list(np.random.normal(size=len(feature_dict)))
+
+        return frozenset(feature_dict.items())
 
 
 def run_games(learner, hist, iters=100, t_len=100):
@@ -206,7 +243,9 @@ if __name__ == '__main__':
     epochs = 200
 
     # Select agent
-    agent = Learner(epochs=epochs, export_to='qs.pkl')
+    # agent = Learner(epochs=epochs, export_to='qs.pkl')
+    agent = ApproximateLearner(epochs=epochs, export_to='qs.pkl')
+
 
     # Empty list to save history
     hist = []
