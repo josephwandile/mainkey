@@ -22,8 +22,8 @@ class Learner(object):
         self.last_reward = None
 
         self.epsilon = epsilon          # for epsilon-greedy
-        self.alpha = 0.8                # learning rate
-        self.gamma = 0.7                # discount
+        self.alpha = alpha              # learning rate
+        self.gamma = gamma              # discount
         self.exploiting = exploiting    # set to false is still trying to learn a good policy
         self.gravity = None
 
@@ -33,6 +33,7 @@ class Learner(object):
         self.epoch = 0
 
         self.w = None  # Store q values, weights for linear models, etc. Arbitrary storage var.
+        self._init_q_values()
 
         self.actions = [SWING, JUMP]
 
@@ -45,7 +46,7 @@ class Learner(object):
         """
         Can use a cooling function here to decrease over time.
         """
-        return self.epsilon or 0.025
+        return self.epsilon or 0.05
 
     def _off_policy(self):
         if self.exploiting:
@@ -57,6 +58,9 @@ class Learner(object):
         pass
 
     def _set_q_value(self, state, action, q_):
+        pass
+
+    def _init_q_values(self):
         pass
 
     def _dump_q_values(self):
@@ -85,7 +89,7 @@ class Learner(object):
 
         state_representation = self._extract_features(state)
 
-        if self.last_state:
+        if self.last_state and not self.exploiting:
             self._update(self.last_state, self.last_action, state_representation, self.last_reward)
 
         self.last_action = self._get_action(state_representation)
@@ -108,9 +112,6 @@ class Learner(object):
 
 
 class ExactLearner(Learner):
-    def __init__(self, epochs, export_to):
-        Learner.__init__(self, epochs=epochs, export_to=export_to)
-        self._init_q_values()
 
     def _update(self, last_state, last_action, current_state, last_reward):
         q = self._get_q_value(last_state, last_action)
@@ -152,10 +153,9 @@ class ExactLearner(Learner):
 
         feature_dict = {  # More granular buckets leads to larger state space, slower convergence.
             'tree_dist': self._get_bucket(tree_dist, size=150),
-            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=25),
-            # 'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
-            # 'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
-            'vel': vel_indicator,
+            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
+            'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
+            'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
             'close_to_bottom': int(monkey_bot < 100),  # Close to bottom of the screen
             'close_to_top': int(monkey_top > 300),     # Close to top of screen
             'gravity': self.gravity,
@@ -250,11 +250,18 @@ def run_games(learner, hist, iters=100, t_len=100):
 
 if __name__ == '__main__':
 
-    epochs = 30
+    """
+    To get a feel for how well this works, import one of the existing .pkl files
+    and run an agent in exploitation mode. This will follow the maximal policy and
+    won't update any of the model's parameters.
+
+    e.g. agent = ExactLearner(epochs=10, import_from='already_trained.pkl', exploiting=True)
+    """
+
+    epochs = 10
 
     # Select agent
-    # agent = ExactLearner(epochs=epochs, export_to='qs.pkl')
-    agent = ApproximateLearner(epochs=epochs, export_to='qs.pkl')
+    agent = ExactLearner(epochs=epochs)
 
     # Empty list to save history
     hist = []
