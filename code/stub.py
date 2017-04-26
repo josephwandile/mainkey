@@ -10,6 +10,7 @@ from collections import defaultdict
 import os
 import pickle
 import random
+from copy import deepcopy
 
 SWING, JUMP = 0, 1
 
@@ -146,19 +147,24 @@ class ExactLearner(Learner):
         monkey_above_up = int(tree_mid > monkey_mid and monkey_vel > 0)
 
         vel_indicator = 0
-        if monkey_vel <= -5:
-            vel_indicator = -1
-        elif monkey_vel >= 5:
+        if 3 <= monkey_vel <= 6:
             vel_indicator = 1
+        elif -6 <= monkey_vel <= -3:
+            vel_indicator = -1
+        elif monkey_vel <= -7:
+            vel_indicator = -2
+        elif monkey_vel >= 7:
+            vel_indicator = 2
 
         feature_dict = {  # More granular buckets leads to larger state space, slower convergence.
-            'tree_dist': self._get_bucket(tree_dist, size=150),
-            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
-            'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
-            'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
+            'tree_dist': self._get_bucket(tree_dist, size=100),
+            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=25),
+            # 'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
+            # 'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
             'close_to_bottom': int(monkey_bot < 100),  # Close to bottom of the screen
             'close_to_top': int(monkey_top > 300),     # Close to top of screen
             'gravity': self.gravity,
+            'vel': vel_indicator,
         }
 
         return frozenset(feature_dict.items())
@@ -181,20 +187,22 @@ class ExactLearner(Learner):
 
 class ApproximateLearner(Learner):
 
-    def __init__(self, epochs, export_to):
-        Learner.__init__(self, epochs=epochs, export_to=export_to, alpha=.1, gamma=.7)
-
     def _update(self, last_state, last_action, current_state, last_reward):
-        for i, _ in enumerate(self.w):
-            self.w[i] = self.w[i] + self.alpha * \
-                        (last_reward + self.gamma + self._get_value(current_state) - self._get_q_value(last_state, last_action)) * \
-                        current_state[i]
 
-        normalized_weights = self.w / np.max(np.abs(self.w))
-        self.w = list(normalized_weights)
+        new_weights = deepcopy(self.w[last_action])
+
+        for i in range(len(new_weights)):
+            new_weights[i] = \
+                new_weights[i] + self.alpha * current_state[i] * \
+                (last_reward + self.gamma + self._get_value(current_state) - self._get_q_value(last_state, last_action))
+
+        self.w[last_action] = list(new_weights / np.max(np.abs(new_weights)))
 
     def _get_q_value(self, state, action):
-        return np.dot(state, self.w)
+        return np.dot(state, self.w[action])
+
+    def _init_q_values(self):
+        self.w = [None, None]
 
     def _extract_features(self, state):
 
@@ -204,7 +212,6 @@ class ApproximateLearner(Learner):
         monkey_vel = state['monkey']['vel']
         monkey_top = state['monkey']['top']
         monkey_bot = state['monkey']['bot']
-        last_action = self.last_action or 0
 
         features = [
             tree_dist,
@@ -212,14 +219,15 @@ class ApproximateLearner(Learner):
             monkey_top,
             monkey_bot,
             self.gravity,
-            # 1.0,
-            # last_action,
             tree_bot,
             tree_top,
         ]
 
-        if not self.w:
-            self.w = list(np.random.uniform(low=-1, size=len(features)))
+        if not self.w[JUMP]:
+            self.w[JUMP] = list(np.random.uniform(low=-1, size=len(features)))
+
+        if not self.w[SWING]:
+            self.w[SWING] = list(np.random.uniform(low=-1, size=len(features)))
 
         return features
 
@@ -258,10 +266,12 @@ if __name__ == '__main__':
     e.g. agent = ExactLearner(epochs=10, import_from='already_trained.pkl', exploiting=True)
     """
 
-    epochs = 10
-
     # Select agent
-    agent = ExactLearner(epochs=epochs)
+    # epochs = 100
+    # agent = ExactLearner(epochs=epochs, epsilon=0.02, alpha=0.7, gamma=0.7)
+
+    epochs = 30
+    agent = ApproximateLearner(epochs=epochs)
 
     # Empty list to save history
     hist = []
