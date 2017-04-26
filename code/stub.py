@@ -1,7 +1,8 @@
 #
 #                                   IMPORTANT NOTE:
 #  Large parts of this code and structure is based on work Aron and Joe did for their final project in CS 182.
-#  https://github.com/josephwandile/flaippy-bird
+#  Permission for reuse granted by course staff.
+#  See https://github.com/josephwandile/flaippy-bird for reference.
 #
 import numpy as np
 from SwingyMonkey import SwingyMonkey
@@ -112,19 +113,21 @@ class Learner(object):
             vel_indicator = 1
 
         feature_dict = {
-            'tree_dist': self._get_bucket(tree_dist, size=50),
+            'tree_dist': self._get_bucket(tree_dist, size=100),
             'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
-            'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
-            'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
+            # 'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
+            # 'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
+            'vel': vel_indicator,
             'close_to_bottom': int(monkey_bot < 100),  # Close to bottom of the screen
             'close_to_top': int(monkey_top > 300),     # Close to top of screen
+            'gravity': self.gravity,
         }
 
         return frozenset(feature_dict.items())
 
     def _update(self, last_state, last_action, current_state, last_reward):
         q = self._get_q_value(last_state, last_action)
-        q_ = q + self.alpha * (last_reward + self.gamma * self._get_value(current_state) - q)
+        q_ = (1 - self.alpha) * q + self.alpha * (last_reward + self.gamma * self._get_value(current_state))
         self._set_q_value(last_state, last_action, q_)
 
     def action_callback(self, state):
@@ -182,7 +185,7 @@ def run_games(learner, hist, iters=100, t_len=100):
 
 if __name__ == '__main__':
 
-    epochs = 200
+    epochs = 50
 
     # Select agent
     agent = Learner(epochs=epochs, export_to='qs.pkl')
