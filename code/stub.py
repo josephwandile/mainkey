@@ -16,7 +16,7 @@ SWING, JUMP = 0, 1
 
 class Learner(object):
 
-    def __init__(self, epsilon=None, import_from=None, export_to=None, exploiting=False, epochs=20):
+    def __init__(self, epsilon=None, import_from=None, export_to=None, exploiting=False, epochs=20, alpha=0.8, gamma=0.7):
         self.last_state = None
         self.last_action = None
         self.last_reward = None
@@ -32,8 +32,7 @@ class Learner(object):
         self.epochs = epochs
         self.epoch = 0
 
-        self.q_values = None
-        self._init_q_values()
+        self.w = None  # Store q values, weights for linear models, etc. Arbitrary storage var.
 
         self.actions = [SWING, JUMP]
 
@@ -42,26 +41,11 @@ class Learner(object):
         self.last_action = None
         self.last_reward = None
 
-    def _init_q_values(self):
-        if self.import_from:
-            if os.path.isfile(self.import_from):
-                with open(self.import_from) as infile:
-                    self.q_values = defaultdict(float, pickle.load(infile))
-        else:
-            self.q_values=defaultdict(float)
-
-    def _dump_q_values(self):
-        if not self.export_to:
-            return
-
-        with open(self.export_to, 'w') as outfile:
-            pickle.dump(self.q_values, outfile)
-
     def _get_epsilon(self):
         """
         Can use a cooling function here to decrease over time.
         """
-        return self.epsilon if not self.epsilon else 0.05
+        return self.epsilon or 0.025
 
     def _off_policy(self):
         if self.exploiting:
@@ -70,10 +54,13 @@ class Learner(object):
         return random.random() < self._get_epsilon()
 
     def _get_q_value(self, state, action):
-        return self.q_values[state, action]
+        pass
 
     def _set_q_value(self, state, action, q_):
-        self.q_values[state, action] = q_
+        pass
+
+    def _dump_q_values(self):
+        pass
 
     def _get_value(self, state):
         return max([self._get_q_value(state, action) for action in self.actions])
@@ -84,6 +71,57 @@ class Learner(object):
     def _get_action(self, state):
         action = random.choice(self.actions) if self._off_policy() else self._get_greedy_action(state)
         return action
+
+    def _extract_features(self, state):
+        pass
+
+    def _update(self, last_state, last_action, current_state, last_reward):
+        pass
+
+    def action_callback(self, state):
+
+        if state['monkey']['vel'] == 0 and not self.gravity:
+            self.gravity = state['monkey']['vel']
+
+        state_representation = self._extract_features(state)
+
+        if self.last_state:
+            self._update(self.last_state, self.last_action, state_representation, self.last_reward)
+
+        self.last_action = self._get_action(state_representation)
+        self.last_state = state_representation
+
+        self.epoch += 1
+        if self.epoch == self.epochs:
+            self._dump_q_values()
+
+        return self.last_action
+
+    def reward_callback(self, reward):
+        """
+        Note to self: action_callback is called after reward_callback
+
+        i.e. state, action, reward, next_state is going to be represented in action_callback
+        as last_state, last_action, last_reward, state
+        """
+        self.last_reward = reward
+
+
+class ExactLearner(Learner):
+    def __init__(self, epochs, export_to):
+        Learner.__init__(self, epochs=epochs, export_to=export_to)
+        self._init_q_values()
+
+    def _update(self, last_state, last_action, current_state, last_reward):
+        q = self._get_q_value(last_state, last_action)
+        q_ = (1 - self.alpha) * q + self.alpha * (last_reward + self.gamma * self._get_value(current_state))
+        self._set_q_value(last_state, last_action, q_)
+
+    def _get_q_value(self, state, action):
+        return self.w[state, action]
+
+    def _set_q_value(self, state, action, q_):
+        self.w[state, action] = q_
 
     @staticmethod
     def _get_bucket(val, size=40):
@@ -125,47 +163,26 @@ class Learner(object):
 
         return frozenset(feature_dict.items())
 
-    def _update(self, last_state, last_action, current_state, last_reward):
-        q = self._get_q_value(last_state, last_action)
-        q_ = (1 - self.alpha) * q + self.alpha * (last_reward + self.gamma * self._get_value(current_state))
-        self._set_q_value(last_state, last_action, q_)
+    def _init_q_values(self):
+        if self.import_from:
+            if os.path.isfile(self.import_from):
+                with open(self.import_from) as infile:
+                    self.w = defaultdict(float, pickle.load(infile))
+        else:
+            self.w = defaultdict(float)
 
-    def action_callback(self, state):
+    def _dump_q_values(self):
+        if not self.export_to:
+            return
 
-        if state['monkey']['vel'] == 0 and not self.gravity:
-            self.gravity = state['monkey']['vel']
-
-        state_representation = self._extract_features(state)
-
-        if self.last_state:
-            self._update(self.last_state, self.last_action, state_representation, self.last_reward)
-
-        self.last_action = self._get_action(state_representation)
-        self.last_state = state_representation
-
-        self.epoch += 1
-        if self.epoch == self.epochs:
-            self._dump_q_values()
-
-        return self.last_action
-
-    def reward_callback(self, reward):
-        """
-        Note to self: action_callback is called after reward_callback
-
-        i.e. state, action, reward, next_state is going to be represented in action_callback
-        as last_state, last_action, last_reward, state
-        """
-        self.last_reward = reward
+        with open(self.export_to, 'w') as outfile:
+            pickle.dump(self.w, outfile)
 
 
 class ApproximateLearner(Learner):
 
     def __init__(self, epochs, export_to):
-        Learner.__init__(self, epochs=epochs, export_to=export_to)
-        self.w = None
-        self.alpha = .1
-        self.gamma = .7
+        Learner.__init__(self, epochs=epochs, export_to=export_to, alpha=.1, gamma=.7)
 
     def _update(self, last_state, last_action, current_state, last_reward):
         for i, _ in enumerate(self.w):
@@ -233,11 +250,11 @@ def run_games(learner, hist, iters=100, t_len=100):
 
 if __name__ == '__main__':
 
-    epochs = 1000
+    epochs = 30
 
     # Select agent
-    agent = Learner(epochs=epochs, export_to='long.pkl')
-    # agent = ApproximateLearner(epochs=epochs, export_to='qs.pkl')
+    # agent = ExactLearner(epochs=epochs, export_to='qs.pkl')
+    agent = ApproximateLearner(epochs=epochs, export_to='qs.pkl')
 
     # Empty list to save history
     hist = []
@@ -248,4 +265,4 @@ if __name__ == '__main__':
     print("High Score: {}".format(np.max(hist)))
     print("Average Score: {}".format(np.mean(hist)))
     print("Average of last {}: {}".format(20, np.mean(hist[-20:])))
-    print("Number of States: {}".format(len(agent.q_values)))
+    print("Number of States / Weights: {}".format(len(agent.w)))
