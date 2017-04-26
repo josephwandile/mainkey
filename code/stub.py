@@ -112,8 +112,8 @@ class Learner(object):
         elif monkey_vel >= 5:
             vel_indicator = 1
 
-        feature_dict = {
-            'tree_dist': self._get_bucket(tree_dist, size=100),
+        feature_dict = {  # More granular buckets leads to larger state space, slower convergence.
+            'tree_dist': self._get_bucket(tree_dist, size=150),
             'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
             # 'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
             # 'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
@@ -159,6 +159,24 @@ class Learner(object):
         self.last_reward = reward
 
 
+class ApproximateLearner(Learner):
+
+    def __init__(self, epochs, export_to):
+        Learner.__init__(self, epochs=epochs, export_to=export_to)
+        self.w = None
+
+    def _update(self, last_state, last_action, current_state, last_reward):
+        feature_vals = [f for _, f in current_state]
+        for i, weight in enumerate(self.w):
+            self.w[i] = weight + self.alpha * \
+                        (last_reward + self.gamma + self._get_value(current_state) - self._get_q_value(last_state, last_action)) * \
+                        feature_vals[i]
+
+    def _get_q_value(self, state, action):
+        feature_vals = [f for _, f in state]
+        return np.dot(feature_vals, self.w)
+
+
 def run_games(learner, hist, iters=100, t_len=100):
     """
     Driver function to simulate learning by having the agent play a sequence of games.
@@ -185,7 +203,7 @@ def run_games(learner, hist, iters=100, t_len=100):
 
 if __name__ == '__main__':
 
-    epochs = 50
+    epochs = 200
 
     # Select agent
     agent = Learner(epochs=epochs, export_to='qs.pkl')
