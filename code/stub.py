@@ -114,7 +114,7 @@ class Learner(object):
 
         feature_dict = {  # More granular buckets leads to larger state space, slower convergence.
             'tree_dist': self._get_bucket(tree_dist, size=150),
-            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
+            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=25),
             # 'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
             # 'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
             'vel': vel_indicator,
@@ -233,11 +233,11 @@ def run_games(learner, hist, iters=100, t_len=100):
 
 if __name__ == '__main__':
 
-    epochs = 200
+    epochs = 1000
 
     # Select agent
-    # agent = Learner(epochs=epochs, export_to='qs.pkl')
-    agent = ApproximateLearner(epochs=epochs, export_to='qs.pkl')
+    agent = Learner(epochs=epochs, export_to='long.pkl')
+    # agent = ApproximateLearner(epochs=epochs, export_to='qs.pkl')
 
     # Empty list to save history
     hist = []
