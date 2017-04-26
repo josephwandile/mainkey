@@ -164,17 +164,20 @@ class ApproximateLearner(Learner):
     def __init__(self, epochs, export_to):
         Learner.__init__(self, epochs=epochs, export_to=export_to)
         self.w = None
+        self.alpha = .1
+        self.gamma = .7
 
     def _update(self, last_state, last_action, current_state, last_reward):
-        feature_vals = [f for _, f in current_state]
         for i, _ in enumerate(self.w):
             self.w[i] = self.w[i] + self.alpha * \
                         (last_reward + self.gamma + self._get_value(current_state) - self._get_q_value(last_state, last_action)) * \
-                        feature_vals[i]
+                        current_state[i]
+
+        normalized_weights = self.w / np.max(np.abs(self.w))
+        self.w = list(normalized_weights)
 
     def _get_q_value(self, state, action):
-        feature_vals = [f for _, f in state]
-        return np.dot(feature_vals, self.w)
+        return np.dot(state, self.w)
 
     def _extract_features(self, state):
 
@@ -184,34 +187,24 @@ class ApproximateLearner(Learner):
         monkey_vel = state['monkey']['vel']
         monkey_top = state['monkey']['top']
         monkey_bot = state['monkey']['bot']
-        tree_mid = tree_bot + (tree_top - tree_bot) / 2
-        monkey_mid = monkey_bot + (monkey_top - monkey_bot) / 2
-        monkey_to_tree = monkey_mid - tree_mid
-        monkey_below_down = int(tree_mid < monkey_mid and monkey_vel < 0)
-        monkey_below_up = int(tree_mid < monkey_mid and monkey_vel > 0)
-        monkey_above_down = int(tree_mid > monkey_mid and monkey_vel < 0)
-        monkey_above_up = int(tree_mid > monkey_mid and monkey_vel > 0)
+        last_action = self.last_action or 0
 
-        feature_dict = {
-            'tree_dist': tree_dist,
-            'monkey_to_tree': monkey_to_tree,
-            'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
-            'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
-            'mbu': monkey_below_up,
-            'mau': monkey_above_up,
-            'vel': monkey_vel,
-            'close_to_bottom': int(monkey_bot < 100),  # Close to bottom of the screen
-            'close_to_top': int(monkey_top > 300),     # Close to top of screen
-            'monkey_top': monkey_top,
-            'monkey_bottom': monkey_bot,
-            'gravity': self.gravity,
-            'bias': 1.0,
-        }
+        features = [
+            tree_dist,
+            monkey_vel,
+            monkey_top,
+            monkey_bot,
+            self.gravity,
+            # 1.0,
+            # last_action,
+            tree_bot,
+            tree_top,
+        ]
 
         if not self.w:
-            self.w = list(np.random.normal(size=len(feature_dict)))
+            self.w = list(np.random.uniform(low=-1, size=len(features)))
 
-        return frozenset(feature_dict.items())
+        return features
 
 
 def run_games(learner, hist, iters=100, t_len=100):
@@ -245,7 +238,6 @@ if __name__ == '__main__':
     # Select agent
     # agent = Learner(epochs=epochs, export_to='qs.pkl')
     agent = ApproximateLearner(epochs=epochs, export_to='qs.pkl')
-
 
     # Empty list to save history
     hist = []
