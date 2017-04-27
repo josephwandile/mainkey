@@ -158,13 +158,13 @@ class ExactLearner(Learner):
 
         feature_dict = {  # More granular buckets leads to larger state space, slower convergence.
             'tree_dist': self._get_bucket(tree_dist, size=100),
-            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=25),
-            # 'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
-            # 'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
+            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
+            'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
+            'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
             'close_to_bottom': int(monkey_bot < 100),  # Close to bottom of the screen
             'close_to_top': int(monkey_top > 300),     # Close to top of screen
             'gravity': self.gravity,
-            'vel': vel_indicator,
+            # 'vel': vel_indicator,
         }
 
         return frozenset(feature_dict.items())
@@ -218,10 +218,12 @@ class ApproximateLearner(Learner):
             monkey_vel,
             monkey_top,
             monkey_bot,
-            self.gravity,
+            # self.gravity,
             tree_bot,
             tree_top,
         ]
+
+        features = list(features / np.max(np.abs(features)))
 
         if not self.w[JUMP]:
             self.w[JUMP] = list(np.random.uniform(low=-1, size=len(features)))
@@ -267,11 +269,11 @@ if __name__ == '__main__':
     """
 
     # Select agent
-    # epochs = 100
-    # agent = ExactLearner(epochs=epochs, epsilon=0.02, alpha=0.7, gamma=0.7)
+    epochs = 100
+    agent = ExactLearner(epochs=epochs, epsilon=0.02, alpha=0.1, gamma=0.7, export_to='qs.pkl')
 
-    epochs = 30
-    agent = ApproximateLearner(epochs=epochs)
+    # epochs = 100
+    # agent = ApproximateLearner(epochs=epochs, alpha=0.01)
 
     # Empty list to save history
     hist = []
@@ -283,3 +285,4 @@ if __name__ == '__main__':
     print("Average Score: {}".format(np.mean(hist)))
     print("Average of last {}: {}".format(20, np.mean(hist[-20:])))
     print("Number of States / Weights: {}".format(len(agent.w)))
+    np.savetxt('res.csv', hist, delimiter=',')
