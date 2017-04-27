@@ -4,6 +4,8 @@
 #  Permission for reuse granted by course staff.
 #  See https://github.com/josephwandile/flaippy-bird for reference.
 #
+import pandas as pd
+import matplotlib.pyplot as plt
 import numpy as np
 from SwingyMonkey import SwingyMonkey
 from collections import defaultdict
@@ -37,6 +39,10 @@ class Learner(object):
         self._init_q_values()
 
         self.actions = [SWING, JUMP]
+
+        self.state_history = []
+        self.action_history = []
+        self.epoch_action_history = []
 
     def reset(self):
         self.last_state = None
@@ -85,6 +91,8 @@ class Learner(object):
 
     def action_callback(self, state):
 
+        self.state_history.append(state)
+
         if state['monkey']['vel'] == 0 and not self.gravity:
             self.gravity = state['monkey']['vel']
 
@@ -94,11 +102,14 @@ class Learner(object):
             self._update(self.last_state, self.last_action, state_representation, self.last_reward)
 
         self.last_action = self._get_action(state_representation)
+        self.epoch_action_history.append(self.last_action)
+
         self.last_state = state_representation
 
         self.epoch += 1
         if self.epoch == self.epochs:
             self._dump_q_values()
+            self.action_history.append(self.epoch_action_history)
 
         return self.last_action
 
@@ -147,24 +158,24 @@ class ExactLearner(Learner):
         monkey_above_up = int(tree_mid > monkey_mid and monkey_vel > 0)
 
         vel_indicator = 0
-        if 3 <= monkey_vel <= 6:
+        if 3 <= monkey_vel <= 10:
             vel_indicator = 1
-        elif -6 <= monkey_vel <= -3:
+        elif -10 <= monkey_vel <= -3:
             vel_indicator = -1
-        elif monkey_vel <= -7:
+        elif monkey_vel <= -11:
             vel_indicator = -2
-        elif monkey_vel >= 7:
+        elif monkey_vel >= 11:
             vel_indicator = 2
 
         feature_dict = {  # More granular buckets leads to larger state space, slower convergence.
             'tree_dist': self._get_bucket(tree_dist, size=100),
             'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
-            'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
-            'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
+            # 'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
+            # 'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
             'close_to_bottom': int(monkey_bot < 100),  # Close to bottom of the screen
             'close_to_top': int(monkey_top > 300),     # Close to top of screen
             'gravity': self.gravity,
-            # 'vel': vel_indicator,
+            'vel': vel_indicator,
         }
 
         return frozenset(feature_dict.items())
@@ -258,6 +269,20 @@ def run_games(learner, hist, iters=100, t_len=100):
         learner.reset()
 
 
+def generate_summary(res, title_details):
+    plt.figure()
+    moving_average = pd.rolling_mean(res, 10)
+    plt.plot(res, label='actual scores')
+    plt.plot(moving_average, label='moving average')
+    plt.title('Scores with {}'.format(title_details))
+    plt.legend(loc='upper left')
+    plt.savefig(open('time.png', 'w'))
+    plt.figure()
+    plt.hist(res.values, bins=6)
+    plt.title('Score distribution with {}'.format(title_details))
+    plt.savefig(open('dist.png', 'w'))
+
+
 if __name__ == '__main__':
 
     """
@@ -268,27 +293,20 @@ if __name__ == '__main__':
     e.g. agent = ExactLearner(epochs=10, import_from='already_trained.pkl', exploiting=True)
     """
 
-    for alpha in [0.01, 0.1, 0.2, 0.5, 1.0]:
-        for trial in [1, 2]:
+    # Select agent
+    epochs = 100
+    agent = ExactLearner(epochs=epochs, epsilon=0.02, alpha=0.1, gamma=0.8, export_to='qs.pkl')
+    # agent = ExactLearner(epochs=epochs, exploiting=True, import_from='qs.pkl')
 
-            # Select agent
-            epochs = 100
-            agent = ExactLearner(epochs=epochs, epsilon=0.02, alpha=alpha, gamma=0.7, export_to='qs.pkl')
+    # epochs = 100
+    # agent = ApproximateLearner(epochs=epochs, alpha=0.01)
 
-            # epochs = 100
-            # agent = ApproximateLearner(epochs=epochs, alpha=0.01)
+    # Empty list to save history
+    hist = []
 
-            # Empty list to save history
-            hist = []
-
-            # Run games
-            run_games(agent, hist, iters=epochs, t_len=0)
-
-            np.savetxt('alpha{}-trial{}.csv'.format(alpha, trial), hist, delimiter=',')
-            print('=============')
-            print('alpha{}-trial{}'.format(alpha, trial))
-            print("High Score: {}".format(np.max(hist)))
-            print("Average Score: {}".format(np.mean(hist)))
-            print("Average of last {}: {}".format(20, np.mean(hist[-20:])))
-            print("Number of States / Weights: {}".format(len(agent.w)))
-            print('=============')
+    # Run games
+    run_games(agent, hist, iters=epochs, t_len=0)
+    print("State Space Size: {}".format(len(agent.w)))
+    np.savetxt('res.csv', hist, delimiter=',')
+    generate_summary(pd.Series(hist), 'alpha=0.1, gamma=0.8')
+    pickle.dump(agent.state_history, open('states.pkl', 'wb'))
