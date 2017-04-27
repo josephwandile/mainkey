@@ -180,6 +180,7 @@ class ExactLearner(Learner):
 
         return frozenset(feature_dict.items())
 
+    # TODO Something strange is happening here. Seems like some states are being lost.
     def _init_q_values(self):
         if self.import_from:
             if os.path.isfile(self.import_from):
@@ -296,7 +297,7 @@ if __name__ == '__main__':
     # Select agent
     epochs = 100
     agent = ExactLearner(epochs=epochs, epsilon=0.02, alpha=0.1, gamma=0.8, export_to='qs.pkl')
-    # agent = ExactLearner(epochs=epochs, exploiting=True, import_from='qs.pkl')
+    # agent = ExactLearner(epochs=epochs, exploiting=True, import_from='./analysis/g=4qs.pkl')
 
     # epochs = 100
     # agent = ApproximateLearner(epochs=epochs, alpha=0.01)
