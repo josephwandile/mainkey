@@ -268,21 +268,27 @@ if __name__ == '__main__':
     e.g. agent = ExactLearner(epochs=10, import_from='already_trained.pkl', exploiting=True)
     """
 
-    # Select agent
-    epochs = 100
-    agent = ExactLearner(epochs=epochs, epsilon=0.02, alpha=0.1, gamma=0.7, export_to='qs.pkl')
+    for alpha in [0.01, 0.1, 0.2, 0.5, 1.0]:
+        for trial in [1, 2]:
 
-    # epochs = 100
-    # agent = ApproximateLearner(epochs=epochs, alpha=0.01)
+            # Select agent
+            epochs = 100
+            agent = ExactLearner(epochs=epochs, epsilon=0.02, alpha=alpha, gamma=0.7, export_to='qs.pkl')
 
-    # Empty list to save history
-    hist = []
+            # epochs = 100
+            # agent = ApproximateLearner(epochs=epochs, alpha=0.01)
 
-    # Run games
-    run_games(agent, hist, iters=epochs, t_len=0)
+            # Empty list to save history
+            hist = []
 
-    print("High Score: {}".format(np.max(hist)))
-    print("Average Score: {}".format(np.mean(hist)))
-    print("Average of last {}: {}".format(20, np.mean(hist[-20:])))
-    print("Number of States / Weights: {}".format(len(agent.w)))
-    np.savetxt('res.csv', hist, delimiter=',')
+            # Run games
+            run_games(agent, hist, iters=epochs, t_len=0)
+
+            np.savetxt('alpha{}-trial{}.csv'.format(alpha, trial), hist, delimiter=',')
+            print('=============')
+            print('alpha{}-trial{}'.format(alpha, trial))
+            print("High Score: {}".format(np.max(hist)))
+            print("Average Score: {}".format(np.mean(hist)))
+            print("Average of last {}: {}".format(20, np.mean(hist[-20:])))
+            print("Number of States / Weights: {}".format(len(agent.w)))
+            print('=============')
