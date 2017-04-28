@@ -225,8 +225,9 @@ if __name__ == '__main__':
     epochs = 100
     alpha = 0.1
     gamma = 0.8
+    epsilon = 0.001
 
-    agent = ExactLearner(epochs=epochs, epsilon=0.001, alpha=alpha, gamma=gamma)
+    agent = ExactLearner(epochs=epochs, epsilon=epsilon, alpha=alpha, gamma=gamma, export_to='latest_qs.pkl')
 
     hist = []
 
@@ -234,5 +235,5 @@ if __name__ == '__main__':
     run_games(agent, hist, iters=epochs, t_len=0)
     print("State Space Size: {}".format(len(agent.w)))
     np.savetxt('res.csv', hist, delimiter=',')
-    generate_summary(pd.Series(hist), 'alpha={}, gamma={}'.format(alpha, gamma))
+    generate_summary(pd.Series(hist), 'alpha={}, gamma={}, epsilon={}'.format(alpha, gamma, epsilon))
     pickle.dump(agent.state_history, open('states.pkl', 'wb'))
