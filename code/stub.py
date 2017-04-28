@@ -19,7 +19,8 @@ SWING, JUMP = 0, 1
 
 class Learner(object):
 
-    def __init__(self, epsilon=None, import_from=None, export_to=None, exploiting=False, epochs=20, alpha=0.8, gamma=0.7):
+    def __init__(self, import_from=None, export_to=None, exploiting=False, epochs=20, epsilon=0.02, alpha=0.1, gamma=0.7):
+
         self.last_state = None
         self.last_action = None
         self.last_reward = None
@@ -28,12 +29,10 @@ class Learner(object):
         self.alpha = alpha              # learning rate
         self.gamma = gamma              # discount
         self.exploiting = exploiting    # set to false is still trying to learn a good policy
-        self.gravity = None
 
         self.import_from = import_from
         self.export_to = export_to
         self.epochs = epochs
-        self.epoch = 0
 
         self.w = None  # Store q values, weights for linear models, etc. Arbitrary storage var.
         self._init_q_values()
@@ -42,24 +41,46 @@ class Learner(object):
 
         self.state_history = []
         self.action_history = []
-        self.epoch_action_history = []
 
     def reset(self):
         self.last_state = None
         self.last_action = None
         self.last_reward = None
 
+    def dump_q_values(self):
+        if not self.export_to:
+            return
+
+        with open(self.export_to, 'w') as outfile:
+            pickle.dump(self.w, outfile)
+
     def _get_epsilon(self):
         """
         Can use a cooling function here to decrease over time.
         """
-        return self.epsilon or 0.05
+        return self.epsilon or 0.02
+
+    def _get_alpha(self):
+        """
+        Cooling function.
+        """
+        return self.alpha or 0.1
 
     def _off_policy(self):
         if self.exploiting:
             return False
 
         return random.random() < self._get_epsilon()
+
+    def _get_value(self, state):
+        return max([self._get_q_value(state, action) for action in self.actions])
+
+    def _get_greedy_action(self, state):
+        return SWING if self._get_q_value(state, SWING) >= self._get_q_value(state, JUMP) else JUMP
+
+    def _get_action(self, state):
+        action = not self._get_greedy_action(state) if self._off_policy() else self._get_greedy_action(state)
+        return int(action)
 
     def _get_q_value(self, state, action):
         pass
@@ -70,19 +91,6 @@ class Learner(object):
     def _init_q_values(self):
         pass
 
-    def _dump_q_values(self):
-        pass
-
-    def _get_value(self, state):
-        return max([self._get_q_value(state, action) for action in self.actions])
-
-    def _get_greedy_action(self, state):
-        return SWING if self._get_q_value(state, SWING) >= self._get_q_value(state, JUMP) else JUMP
-
-    def _get_action(self, state):
-        action = random.choice(self.actions) if self._off_policy() else self._get_greedy_action(state)
-        return action
-
     def _extract_features(self, state):
         pass
 
@@ -92,24 +100,15 @@ class Learner(object):
     def action_callback(self, state):
 
         self.state_history.append(state)
-
-        if state['monkey']['vel'] == 0 and not self.gravity:
-            self.gravity = state['monkey']['vel']
-
         state_representation = self._extract_features(state)
 
         if self.last_state and not self.exploiting:
             self._update(self.last_state, self.last_action, state_representation, self.last_reward)
 
         self.last_action = self._get_action(state_representation)
-        self.epoch_action_history.append(self.last_action)
+        self.action_history.append(self.last_action)
 
         self.last_state = state_representation
-
-        self.epoch += 1
-        if self.epoch == self.epochs:
-            self._dump_q_values()
-            self.action_history.append(self.epoch_action_history)
 
         return self.last_action
 
@@ -127,7 +126,7 @@ class ExactLearner(Learner):
 
     def _update(self, last_state, last_action, current_state, last_reward):
         q = self._get_q_value(last_state, last_action)
-        q_ = (1 - self.alpha) * q + self.alpha * (last_reward + self.gamma * self._get_value(current_state))
+        q_ = (1 - self._get_alpha()) * q + self._get_alpha() * (last_reward + self.gamma * self._get_value(current_state))
         self._set_q_value(last_state, last_action, q_)
 
     def _get_q_value(self, state, action):
@@ -136,51 +135,34 @@ class ExactLearner(Learner):
     def _set_q_value(self, state, action, q_):
         self.w[state, action] = q_
 
-    @staticmethod
-    def _get_bucket(val, size=40):
-        return val - (val % size)
-
     def _extract_features(self, state):
 
-        score = state['score']
+        gravity = state['gravity']
+
         tree_dist = state['tree']['dist']
+
         tree_top = state['tree']['top']
         tree_bot = state['tree']['bot']
-        monkey_vel = state['monkey']['vel']
+        tree_mid = tree_bot + (tree_top - tree_bot) / 2
+
         monkey_top = state['monkey']['top']
         monkey_bot = state['monkey']['bot']
-        tree_mid = tree_bot + (tree_top - tree_bot) / 2
         monkey_mid = monkey_bot + (monkey_top - monkey_bot) / 2
-        monkey_to_tree = monkey_mid - tree_mid
-        monkey_below_down = int(tree_mid < monkey_mid and monkey_vel < 0)
-        monkey_below_up = int(tree_mid < monkey_mid and monkey_vel > 0)
-        monkey_above_down = int(tree_mid > monkey_mid and monkey_vel < 0)
-        monkey_above_up = int(tree_mid > monkey_mid and monkey_vel > 0)
 
-        vel_indicator = 0
-        if 3 <= monkey_vel <= 10:
-            vel_indicator = 1
-        elif -10 <= monkey_vel <= -3:
-            vel_indicator = -1
-        elif monkey_vel <= -11:
-            vel_indicator = -2
-        elif monkey_vel >= 11:
-            vel_indicator = 2
+        relative_y = monkey_mid - tree_mid
 
-        feature_dict = {  # More granular buckets leads to larger state space, slower convergence.
-            'tree_dist': self._get_bucket(tree_dist, size=100),
-            'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
-            # 'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
-            # 'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
-            'close_to_bottom': int(monkey_bot < 100),  # Close to bottom of the screen
-            'close_to_top': int(monkey_top > 300),     # Close to top of screen
-            'gravity': self.gravity,
-            'vel': vel_indicator,
+        monkey_vel = state['monkey']['vel']
+
+        feature_dict = {
+            'gravity': gravity,
+            'relative_x': tree_dist // 150,
+            'relative_y': relative_y // 50,
+            'should_jump': int(monkey_vel < 0 and monkey_mid < tree_mid),
+            'should_fall': int(monkey_vel > 0 and monkey_mid > tree_mid),
         }
 
         return frozenset(feature_dict.items())
 
-    # TODO Something strange is happening here. Seems like some states are being lost.
     def _init_q_values(self):
         if self.import_from:
             if os.path.isfile(self.import_from):
@@ -188,62 +170,6 @@ class ExactLearner(Learner):
                     self.w = defaultdict(float, pickle.load(infile))
         else:
             self.w = defaultdict(float)
-
-    def _dump_q_values(self):
-        if not self.export_to:
-            return
-
-        with open(self.export_to, 'w') as outfile:
-            pickle.dump(self.w, outfile)
-
-
-class ApproximateLearner(Learner):
-
-    def _update(self, last_state, last_action, current_state, last_reward):
-
-        new_weights = deepcopy(self.w[last_action])
-
-        for i in range(len(new_weights)):
-            new_weights[i] = \
-                new_weights[i] + self.alpha * current_state[i] * \
-                (last_reward + self.gamma + self._get_value(current_state) - self._get_q_value(last_state, last_action))
-
-        self.w[last_action] = list(new_weights / np.max(np.abs(new_weights)))
-
-    def _get_q_value(self, state, action):
-        return np.dot(state, self.w[action])
-
-    def _init_q_values(self):
-        self.w = [None, None]
-
-    def _extract_features(self, state):
-
-        tree_dist = state['tree']['dist']
-        tree_top = state['tree']['top']
-        tree_bot = state['tree']['bot']
-        monkey_vel = state['monkey']['vel']
-        monkey_top = state['monkey']['top']
-        monkey_bot = state['monkey']['bot']
-
-        features = [
-            tree_dist,
-            monkey_vel,
-            monkey_top,
-            monkey_bot,
-            # self.gravity,
-            tree_bot,
-            tree_top,
-        ]
-
-        features = list(features / np.max(np.abs(features)))
-
-        if not self.w[JUMP]:
-            self.w[JUMP] = list(np.random.uniform(low=-1, size=len(features)))
-
-        if not self.w[SWING]:
-            self.w[SWING] = list(np.random.uniform(low=-1, size=len(features)))
-
-        return features
 
 
 def run_games(learner, hist, iters=100, t_len=100):
@@ -268,6 +194,8 @@ def run_games(learner, hist, iters=100, t_len=100):
 
         # Reset the state of the learner.
         learner.reset()
+
+    learner.dump_q_values()
 
 
 def generate_summary(res, title_details):
@@ -294,20 +222,17 @@ if __name__ == '__main__':
     e.g. agent = ExactLearner(epochs=10, import_from='already_trained.pkl', exploiting=True)
     """
 
-    # Select agent
-    epochs = 100
-    agent = ExactLearner(epochs=epochs, epsilon=0.02, alpha=0.1, gamma=0.8, export_to='qs.pkl')
-    # agent = ExactLearner(epochs=epochs, exploiting=True, import_from='./analysis/g=4qs.pkl')
+    epochs = 30
+    alpha = 0.1
+    gamma = 0.8
 
-    # epochs = 100
-    # agent = ApproximateLearner(epochs=epochs, alpha=0.01)
+    agent = ExactLearner(epochs=epochs, epsilon=0.01, alpha=alpha, gamma=gamma)
 
-    # Empty list to save history
     hist = []
 
     # Run games
     run_games(agent, hist, iters=epochs, t_len=0)
     print("State Space Size: {}".format(len(agent.w)))
     np.savetxt('res.csv', hist, delimiter=',')
-    generate_summary(pd.Series(hist), 'alpha=0.1, gamma=0.8')
+    generate_summary(pd.Series(hist), 'alpha={}, gamma={}'.format(alpha, gamma))
     pickle.dump(agent.state_history, open('states.pkl', 'wb'))
