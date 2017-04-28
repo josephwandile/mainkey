@@ -222,11 +222,11 @@ if __name__ == '__main__':
     e.g. agent = ExactLearner(epochs=10, import_from='already_trained.pkl', exploiting=True)
     """
 
-    epochs = 30
+    epochs = 100
     alpha = 0.1
     gamma = 0.8
 
-    agent = ExactLearner(epochs=epochs, epsilon=0.01, alpha=alpha, gamma=gamma)
+    agent = ExactLearner(epochs=epochs, epsilon=0.001, alpha=alpha, gamma=gamma)
 
     hist = []
 
