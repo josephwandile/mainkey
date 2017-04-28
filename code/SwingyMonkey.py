@@ -34,7 +34,7 @@ class SwingyMonkey:
         self.screen_height = 400
         self.horz_speed    = 25
         self.impulse       = 15
-        self.gravity       = npr.choice([1, 4])
+        self.gravity       = 4 #npr.choice([1, 4])  # TODO Allow randomness
         self.tree_mean     = 5
         self.tree_gap      = 200
         self.tree_offset   = -300
@@ -106,6 +106,7 @@ class SwingyMonkey:
 
         # Construct the state dictionary to return.
         return { 'score': self.score,
+                 'gravity': self.gravity,
                  'tree': { 'dist': next_tree['x']+215-self.monkey_right,
                            'top': self.screen_height-next_tree['y'],
                            'bot': self.screen_height-next_tree['y']-self.tree_gap},
