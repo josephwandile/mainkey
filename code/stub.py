@@ -167,15 +167,19 @@ class ExactLearner(Learner):
         elif monkey_vel >= 11:
             vel_indicator = 2
 
+        vert = state['monkey']['bot'] - state['tree']['bot']
+
         feature_dict = {  # More granular buckets leads to larger state space, slower convergence.
             'tree_dist': self._get_bucket(tree_dist, size=100),
             'monkey_to_tree': self._get_bucket(monkey_to_tree, size=50),
+            'vert': self._get_bucket(vert, size=50),
             # 'monkey_below_down': monkey_below_down,    # Monkey is below the midpoint of the gap and moving downwards
             # 'monkey_above_down': monkey_above_down,    # Monkey is above the midpoint of the gap and moving downwards
             'close_to_bottom': int(monkey_bot < 100),  # Close to bottom of the screen
             'close_to_top': int(monkey_top > 300),     # Close to top of screen
             'gravity': self.gravity,
-            'vel': vel_indicator,
+            #'vel': vel_indicator,
+            'vel': self._get_bucket(monkey_vel, size=100)
         }
 
         return frozenset(feature_dict.items())
@@ -277,11 +281,11 @@ def generate_summary(res, title_details):
     plt.plot(moving_average, label='moving average')
     plt.title('Scores with {}'.format(title_details))
     plt.legend(loc='upper left')
-    plt.savefig(open('time.png', 'w'))
+    plt.savefig(open('images/time_{}.png'.format(title_details), 'w'))
     plt.figure()
     plt.hist(res.values, bins=6)
     plt.title('Score distribution with {}'.format(title_details))
-    plt.savefig(open('dist.png', 'w'))
+    plt.savefig(open('images/dist_{}.png'.format(title_details), 'w'))
 
 
 if __name__ == '__main__':
@@ -293,21 +297,25 @@ if __name__ == '__main__':
 
     e.g. agent = ExactLearner(epochs=10, import_from='already_trained.pkl', exploiting=True)
     """
-
     # Select agent
-    epochs = 100
-    agent = ExactLearner(epochs=epochs, epsilon=0.02, alpha=0.1, gamma=0.8, export_to='qs.pkl')
-    # agent = ExactLearner(epochs=epochs, exploiting=True, import_from='./analysis/g=4qs.pkl')
+    for trial in [1,2,3,4]:
+        #for alpha in [0.95, .1, .11]:
+        epochs = 100
+        epsilon=0.02
+        alpha = 0.1
+        gamma=0.8
+        agent = ExactLearner(epochs=epochs, epsilon=epsilon, alpha=alpha, gamma=gamma, export_to='qs.pkl')
+        # agent = ExactLearner(epochs=epochs, exploiting=True, import_from='./analysis/g=4qs.pkl')
 
-    # epochs = 100
-    # agent = ApproximateLearner(epochs=epochs, alpha=0.01)
+        # epochs = 100
+        # agent = ApproximateLearner(epochs=epochs, alpha=0.01)
 
-    # Empty list to save history
-    hist = []
+        # Empty list to save history
+        hist = []
 
-    # Run games
-    run_games(agent, hist, iters=epochs, t_len=0)
-    print("State Space Size: {}".format(len(agent.w)))
-    np.savetxt('res.csv', hist, delimiter=',')
-    generate_summary(pd.Series(hist), 'alpha=0.1, gamma=0.8')
-    pickle.dump(agent.state_history, open('states.pkl', 'wb'))
+        # Run games
+        run_games(agent, hist, iters=epochs, t_len=0)
+        print("State Space Size: {}".format(len(agent.w)))
+        np.savetxt('res.csv', hist, delimiter=',')
+        generate_summary(pd.Series(hist), 'alpha{}-gamma{}-trial{}.csv'.format(alpha, gamma, trial))
+        pickle.dump(agent.state_history, open('states.pkl', 'wb'))
