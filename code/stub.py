@@ -272,7 +272,6 @@ class ApproximateLearner(Learner):
 
 def run_games(learner, hist, iters=100, t_len=100):
     """
->>>>>>> 037c9b2c8b9da9f0a42853ef41db64574e29d263
     Driver function to simulate learning by having the agent play a sequence of games.
 
     """
