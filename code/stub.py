@@ -5,7 +5,7 @@
 #  See https://github.com/josephwandile/flaippy-bird for reference.
 #
 import pandas as pd
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 from SwingyMonkey import SwingyMonkey
 from collections import defaultdict
@@ -15,6 +15,7 @@ import random
 from copy import deepcopy
 
 SWING, JUMP = 0, 1
+epoch = 0
 
 
 class Learner(object):
@@ -58,6 +59,7 @@ class Learner(object):
         """
         Can use a cooling function here to decrease over time.
         """
+        # return .5 / (epoch + 1)
         return self.epsilon or 0.02
 
     def _get_alpha(self):
@@ -171,11 +173,14 @@ class ExactLearner(Learner):
             self.w = defaultdict(float)
 
 
-def run_games(learner, hist, iters=100, t_len=100):
+def run_games(learner, hist, iters=100, t_len=1):
+    global epoch
     """
     Driver function to simulate learning by having the agent play a sequence of games.
     """
     for ii in range(iters):
+        epoch = ii
+        # print ii
         # Make a new monkey object.
         swing = SwingyMonkey(sound=False,  # Don't play sounds.
                              text="Epoch {}".format(ii),  # Display the epoch on screen.
@@ -209,6 +214,27 @@ def generate_summary(res, title_details):
     plt.title('Score distribution with {}'.format(title_details))
     plt.savefig(open('dist.png', 'w'))
 
+def experiment(epochs, alpha, gamma, epsilon):
+    agent = ExactLearner(epochs=epochs, epsilon=0.001, alpha=alpha, gamma=gamma)
+    hist = []
+
+    # Run games
+    run_games(agent, hist, iters=epochs, t_len=0)
+    # print("State Space Size: {}".format(len(agent.w)))
+
+    maxtrain = max(hist)
+    avgtrain = float(sum(hist))/len(hist)
+    hist = []
+    run_games(agent, hist, iters=200, t_len=0)
+    maxtest =  max(hist)
+    avgtest = float(sum(hist)) / len(hist)
+
+    print epochs, alpha, gamma, epsilon, maxtrain, avgtrain, maxtest, avgtest
+
+
+    # np.savetxt('res.csv', hist, delimiter=',')
+    # generate_summary(pd.Series(hist), 'alpha={}, gamma={}'.format(alpha, gamma))
+    # pickle.dump(agent.state_history, open('states.pkl', 'wb'))
 
 if __name__ == '__main__':
     """
@@ -218,17 +244,18 @@ if __name__ == '__main__':
     e.g. agent = ExactLearner(epochs=10, import_from='already_trained.pkl', exploiting=True)
     """
 
-    epochs = 100
-    alpha = 0.1
-    gamma = 0.8
-
-    agent = ExactLearner(epochs=epochs, epsilon=0.001, alpha=alpha, gamma=gamma)
-
-    hist = []
-
-    # Run games
-    run_games(agent, hist, iters=epochs, t_len=0)
-    print("State Space Size: {}".format(len(agent.w)))
-    np.savetxt('res.csv', hist, delimiter=',')
-    generate_summary(pd.Series(hist), 'alpha={}, gamma={}'.format(alpha, gamma))
-    pickle.dump(agent.state_history, open('states.pkl', 'wb'))
+    epochs = [10, 50, 100, 400]
+    alphas= [.001, .01, .1, 2]
+    gammas = [.5,.7,.8,.9]
+    eps = [0, .001, .01, .1]
+    for ep in epochs:
+        for a in alphas:
+            for g in gammas:
+                for e in eps:
+                    try:
+                        experiment(ep, a, g, e)
+                    except Exception as e:
+                        try:
+                            experiment(ep, a, g, e)
+                        except Exception as e:
+                            continue
