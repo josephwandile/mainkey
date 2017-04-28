@@ -45,6 +45,41 @@ class Learner(object):
         self.last_reward = reward
 
 
+    def _extract_features(self, state):
+
+        score = state['score']
+        tree_dist = state['tree']['dist']
+        tree_top = state['tree']['top']
+        tree_bot = state['tree']['bot']
+        monkey_vel = state['monkey']['vel']
+        monkey_top = state['monkey']['top']
+        monkey_bot = state['monkey']['bot']
+        tree_mid = (tree_top - tree_bot)
+        monkey_mid = (monkey_top - monkey_bot)
+        monkey_below_down = int(tree_mid < monkey_mid and monkey_vel < 0)
+        monkey_below_up = int(tree_mid < monkey_mid and monkey_vel > 0)
+        monkey_above_down = int(tree_mid > monkey_mid and monkey_vel < 0)
+        monkey_above_up = int(tree_mid > monkey_mid and monkey_vel > 0)
+        feature_dict = {'score': score,
+                        'tree_dist': tree_dist,
+                        'tree_top': tree_top,
+                        'tree_bot': tree_bot,
+                        'monkey_vel': monkey_vel,
+                        'monkey_top': monkey_top,
+                        'monkey_bot': monkey_bot,
+                        'monkey_below_down': monkey_below_down,
+                        'monkey_below_up': monkey_below_up,
+                        'monkey_above_down': monkey_above_down,
+                        'monkey_above_up': monkey_above_up}
+        return frozenset(feature_dict.items())
+
+
+        # gravity = 2 #infer
+
+
+
+
+
 def run_games(learner, hist, iters = 100, t_len = 100):
     '''
     Driver function to simulate learning by having the agent play a sequence of games.
