@@ -249,21 +249,27 @@ if __name__ == '__main__':
     e.g. agent = ExactLearner(epochs=10, import_from='already_trained.pkl', exploiting=True)
     """
 
-    epochs = [50, 75, 100]
-    alphas= [.01, .05, .1]
-    gammas = [.8,.9]
-    eps = [.001, .01]
-    for ep in epochs:
-        for a in alphas:
-            for g in gammas:
-                for e in eps:
-                    try:
-                        experiment(ep, a, g, e)
-                    except Exception as e:
-                        try:
-                            experiment(ep, a, g, e)
-                        except Exception as e:
-                            continue
+    # epochs = [50, 75, 100]
+    # alphas= [.01, .05, .1]
+    # gammas = [.8,.9]
+    # eps = [.001, .01]
+    # for ep in epochs:
+    #     for a in alphas:
+    #         for g in gammas:
+    #             for e in eps:
+    #                 try:
+    #                     experiment(ep, a, g, e)
+    #                 except Exception as e:
+    #                     try:
+    #                         experiment(ep, a, g, e)
+    #                     except Exception as e:
+    #                         continue
 
     # experiment(300	,0.05	,0.8	,0.001)
+    agent = ExactLearner(epochs=10, import_from='demo.w', exploiting=True)
+    hist = []
+    # Run games
+    run_games(agent, hist, iters=10, t_len=5)
+
+
 
